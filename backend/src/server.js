@@ -55,7 +55,7 @@ app.use(
     crossOriginResourcePolicy: false,
   })
 );
-app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:5173", credentials: true }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
@@ -869,7 +869,7 @@ seedAdminAndCards()
   .then(() => {
     const server = http.createServer(app);
     const ioServer = new Server(server, {
-      cors: { origin: process.env.CORS_ORIGIN || "http://localhost:5173", credentials: true },
+      cors: { origin: true, credentials: true },
     });
     global.io = ioServer;
     io = ioServer;
@@ -909,7 +909,9 @@ seedAdminAndCards()
       });
     });
 
-    server.listen(port, () => console.log(`API listening on ${port}`));
+    server.listen(port, "0.0.0.0", () =>
+      console.log(`API listening on 0.0.0.0:${port} (use this computer's LAN IP from other devices)`)
+    );
   })
   .catch((e) => {
     console.error(e);

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { io as ioClient } from "socket.io-client";
 import "./App.css";
 import GlitchText from "./components/GlitchText";
@@ -6,7 +7,13 @@ import FloatingLines from "./components/FloatingLines";
 import GooeyNav from "./components/GooeyNav";
 import ElectricBorder from "./components/ElectricBorder";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+// Без VITE_API_URL: тот же хост, что у страницы (LAN: телефон → 192.168.x.x:4000, не localhost на самом телефоне)
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API =
+  envApiUrl ||
+  (typeof window !== "undefined"
+    ? `http://${window.location.hostname}:4000/api`
+    : "http://localhost:4000/api");
 const API_BASE = API.replace(/\/api$/, "");
 const tabs = ["Кейс", "Биржа", "Мини-игра", "Лидерборд", "Лента", "Чат", "Личный кабинет"];
 const TOKEN_KEY = "case_app_token";
@@ -117,6 +124,8 @@ function App() {
   const [emojiRain, setEmojiRain] = useState([]);
   const [dancingCard, setDancingCard] = useState(null);
   const audioRef = useRef(null);
+  /** Без этого iOS/Android блокируют play() после setTimeout/await (не считается user gesture). */
+  const audioUnlockedRef = useRef(false);
   const effectIntervalRef = useRef(null);
   const effectTimeoutRef = useRef(null);
 
@@ -185,6 +194,28 @@ function App() {
       audioRef.current.currentTime = 0;
     }
   };
+
+  const primeDiamondAudioPlayback = useCallback(() => {
+    const el = audioRef.current;
+    if (!el || audioUnlockedRef.current) return;
+    const prevMuted = el.muted;
+    const prevVol = el.volume;
+    el.muted = true;
+    el.volume = 0;
+    void el
+      .play()
+      .then(() => {
+        el.pause();
+        el.currentTime = 0;
+        el.muted = prevMuted;
+        el.volume = prevVol;
+        audioUnlockedRef.current = true;
+      })
+      .catch(() => {
+        el.muted = prevMuted;
+        el.volume = prevVol;
+      });
+  }, []);
 
   const triggerRewardEffects = (card) => {
     stopRewardEffects();
@@ -562,6 +593,7 @@ function App() {
   };
 
   const handleCaseOpen = async (mode) => {
+    primeDiamondAudioPlayback();
     try {
       setIsOpeningCase(true);
       const data = await request("/cases/open", token, { method: "POST", body: JSON.stringify({ mode }) });
@@ -827,6 +859,18 @@ function App() {
   }, [token]);
 
   useEffect(() => {
+    if (!token) audioUnlockedRef.current = false;
+  }, [token]);
+
+  /** Первый тап после входа снимает autoplay-блокировку до открытия кейса */
+  useEffect(() => {
+    if (!token) return;
+    const unlock = () => primeDiamondAudioPlayback();
+    window.addEventListener("pointerdown", unlock, { capture: true });
+    return () => window.removeEventListener("pointerdown", unlock, true);
+  }, [token, primeDiamondAudioPlayback]);
+
+  useEffect(() => {
     document.documentElement.setAttribute("data-theme", "dark");
   }, []);
 
@@ -1037,20 +1081,23 @@ function App() {
   if (user?.isAdmin) {
     return (
       <main className="app appWithFx">
-        <div className="appFxBg" aria-hidden="true">
-          <FloatingLines
-            enabledWaves={floatingEnabledWaves}
-            lineCount={8}
-            lineDistance={8}
-            bendRadius={8}
-            bendStrength={-2}
-            interactive={false}
-            parallax={false}
-            linesGradient={floatingGradient}
-            animationSpeed={1}
-            mixBlendMode="screen"
-          />
-        </div>
+        {createPortal(
+          <div className="appFxBg" aria-hidden="true">
+            <FloatingLines
+              enabledWaves={floatingEnabledWaves}
+              lineCount={8}
+              lineDistance={8}
+              bendRadius={8}
+              bendStrength={-2}
+              interactive={false}
+              parallax={false}
+              linesGradient={floatingGradient}
+              animationSpeed={1}
+              mixBlendMode="screen"
+            />
+          </div>,
+          document.body
+        )}
         {toast}
         <header className="topBar">
           <h1>Admin Panel</h1>
@@ -1133,27 +1180,30 @@ function App() {
 
   return (
     <main className="app appWithFx">
-      <div className="appFxBg" aria-hidden="true">
-        {tab === "Мини-игра" ? (
-          <video className="miniGameVideoBg" autoPlay muted loop playsInline>
-            <source src="/video.mp4" type="video/mp4" />
-          </video>
-        ) : (
-          <FloatingLines
-            enabledWaves={floatingEnabledWaves}
-            lineCount={8}
-            lineDistance={8}
-            bendRadius={8}
-            bendStrength={-2}
-            interactive={false}
-            parallax={false}
-            linesGradient={floatingGradient}
-            animationSpeed={1}
-            mixBlendMode="screen"
-          />
-        )}
-      </div>
-      <audio ref={audioRef} src="/matadora.mp3" preload="auto" />
+      {createPortal(
+        <div className="appFxBg" aria-hidden="true">
+          {tab === "Мини-игра" ? (
+            <video className="miniGameVideoBg" autoPlay muted loop playsInline>
+              <source src="/video.mp4" type="video/mp4" />
+            </video>
+          ) : (
+            <FloatingLines
+              enabledWaves={floatingEnabledWaves}
+              lineCount={8}
+              lineDistance={8}
+              bendRadius={8}
+              bendStrength={-2}
+              interactive={false}
+              parallax={false}
+              linesGradient={floatingGradient}
+              animationSpeed={1}
+              mixBlendMode="screen"
+            />
+          )}
+        </div>,
+        document.body
+      )}
+      <audio ref={audioRef} src="/matadora.mp3" preload="auto" playsInline />
       {emojiRain.length > 0 && (
         <div className="emojiRainLayer" aria-hidden="true">
           {emojiRain.map((item) => (
