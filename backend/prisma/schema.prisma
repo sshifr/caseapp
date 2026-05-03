@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    Int                  @id @default(autoincrement())
+  login                 String               @unique
+  passwordHash          String
+  avatarUrl             String               @default("https://placehold.co/64x64")
+  balance               Int                  @default(0)
+  isAdmin               Boolean              @default(false)
+  freeCaseOpens         Int                  @default(3)
+  lastFreeCaseOpenedAt  DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  inventory             UserInventory[]
+  listings              MarketplaceListing[] @relation("seller_listings")
+  purchases             MarketplaceListing[] @relation("buyer_listings")
+  transactions          Transaction[]
+
+  chatParticipants      ChatParticipant[]
+  messagesSent          ChatMessage[]        @relation("messages_sent")
+  feedPosts             FeedPost[]
+  feedReactions         FeedPostReaction[]
+}
+
+model FeedPost {
+  id        Int               @id @default(autoincrement())
+  authorId  Int
+  text      String            @default("")
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media     FeedPostMedia[]
+  reactions FeedPostReaction[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([authorId])
+}
+
+model FeedPostMedia {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  url       String
+  filename  String
+  mimeType  String
+  sizeBytes Int
+  createdAt DateTime @default(now())
+  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model FeedPostReaction {
+  id     Int      @id @default(autoincrement())
+  postId Int
+  userId Int
+  type   String
+  post   FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+}
+
+model Chat {
+  id            Int               @id @default(autoincrement())
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  participants  ChatParticipant[]
+  messages      ChatMessage[]
+}
+
+model ChatParticipant {
+  id        Int      @id @default(autoincrement())
+  chatId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+  lastReadMessageId Int @default(0)
+
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id          Int              @id @default(autoincrement())
+  chatId      Int
+  senderId    Int
+  text        String           @default("")
+  createdAt   DateTime         @default(now())
+  deletedAt   DateTime?
+
+  chat        Chat             @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User             @relation("messages_sent", fields: [senderId], references: [id], onDelete: Cascade)
+  attachments ChatAttachment[]
+
+  @@index([chatId, createdAt])
+  @@index([senderId])
+}
+
+model ChatAttachment {
+  id           Int         @id @default(autoincrement())
+  messageId    Int
+  url          String
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime    @default(now())
+
+  message      ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model Card {
+  id            Int                  @id @default(autoincrement())
+  name          String
+  rarity        String
+  imageUrl      String               @default("https://placehold.co/300x420")
+  basePrice     Int
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  inventories   UserInventory[]
+  listings      MarketplaceListing[]
+}
+
+model UserInventory {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  cardId     Int
+  obtainedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+}
+
+model MarketplaceListing {
+  id         Int       @id @default(autoincrement())
+  sellerId   Int
+  buyerId    Int?
+  cardId     Int
+  price      Int
+  status     String    @default("active")
+  createdAt  DateTime  @default(now())
+  closedAt   DateTime?
+  seller     User      @relation("seller_listings", fields: [sellerId], references: [id])
+  buyer      User?     @relation("buyer_listings", fields: [buyerId], references: [id])
+  card       Card      @relation(fields: [cardId], references: [id])
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  amount      Int
+  reason      String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Promocode {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  amount      Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model AppConfig {
+  id            Int @id
+  caseOpenPrice Int @default(100)
+  gameCircleImageUrl String @default("")
+}

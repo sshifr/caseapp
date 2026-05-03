@@ -1,0 +1,56 @@
+# macOS / Finder
+.DS_Store
+.AppleDouble
+.LSOverride
+**/.DS_Store
+__MACOSX/
+**/__MACOSX/
+
+# Thumbnails / metadata
+._*
+
+# Dependencies
+node_modules/
+
+# Builds & caches
+dist/
+dist-ssr/
+build/
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & debug
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing & coverage
+coverage/
+.nyc_output/
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# Prisma / local DB (if generated locally)
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Misc
+*.local
